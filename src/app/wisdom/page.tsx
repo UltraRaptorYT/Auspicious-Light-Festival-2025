@@ -237,7 +237,7 @@ export default function HomePage() {
         <div className="space-y-3">
           <div>
             <h2 className="text-sm font-semibold mb-1">Transcript (final)</h2>
-            <div className="border rounded-md p-3 min-h-[80px] text-sm bg-gray-50 whitespace-pre-wrap">
+            <div className="border rounded-md p-3 min-h-20 text-sm bg-gray-50 whitespace-pre-wrap">
               {transcript || (
                 <span className="text-gray-400">No speech yet…</span>
               )}

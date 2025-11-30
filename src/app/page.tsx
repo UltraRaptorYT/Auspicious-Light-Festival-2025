@@ -2,34 +2,23 @@
 
 import { useEffect, useState } from "react";
 import { messages } from "@/translate";
-import { type Lang } from "@/types";
+import { type Lang, type UserRow } from "@/types";
 import { Button } from "@/components/ui/button";
 import supabase from "@/lib/supabase";
 import { usePersistentId } from "@/lib/hooks/usePersistentId";
-
-type UserRow = {
-  id: string;
-  name: string;
-  lang: Lang;
-};
+import { useLocalStorageState } from "@/lib/hooks/useLocalStorageState";
+import LanguageToggle from "@/components/LanguageToggle";
+import GamePage from "@/components/GamePage";
 
 export default function Home() {
-  const [lang, setLang] = useState<Lang>("en");
+  const [lang, setLang] = useLocalStorageState<Lang>("lang", "en");
   const [name, setName] = useState("");
   const [user, setUser] = useState<UserRow | null>(null);
   const [isCheckingUser, setIsCheckingUser] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // UUID persisted in localStorage
   const userId = usePersistentId("auspicious_light_25_user_id");
 
-  type NameSubmitType = {
-    id: string;
-    name: string;
-    lang: Lang;
-  };
-
-  // 🔍 On first load (or refresh), check if this user ID already exists in Supabase
   useEffect(() => {
     if (!userId) return;
 
@@ -40,7 +29,7 @@ export default function Home() {
 
       const { data, error } = await supabase
         .from("auspicious_light_25_users")
-        .select("id, name, lang")
+        .select("id, name")
         .eq("id", userId);
 
       if (cancelled) return;
@@ -55,7 +44,6 @@ export default function Home() {
         const existing = data[0] as UserRow;
         setUser(existing);
         setName(existing.name);
-        setLang(existing.lang);
       }
 
       setIsCheckingUser(false);
@@ -66,9 +54,9 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [userId, setLang]);
 
-  const handleNameSubmit = async (formData: NameSubmitType) => {
+  const handleNameSubmit = async (formData: UserRow) => {
     if (isSubmitting) return; // 🚫 prevent double-click
 
     setIsSubmitting(true);
@@ -76,7 +64,7 @@ export default function Home() {
     const { data, error } = await supabase
       .from("auspicious_light_25_users")
       .insert(formData)
-      .select("id, name, lang");
+      .select("id, name");
 
     if (error) {
       console.error(error);
@@ -88,10 +76,15 @@ export default function Home() {
       const created = data[0] as UserRow;
       setUser(created);
       setName(created.name);
-      setLang(created.lang);
     }
 
     setIsSubmitting(false);
+  };
+
+  // Toggle language — UI/local-storage only, no DB writes
+  const toggleLang = () => {
+    const nextLang: Lang = lang === "en" ? "zh" : "en";
+    setLang(nextLang);
   };
 
   // While UUID + initial check is happening
@@ -102,52 +95,25 @@ export default function Home() {
   const t = messages[lang];
   const fontClass = lang === "en" ? "font-en" : "font-zh";
 
-  // ✅ If user already exists in Supabase, just show welcome screen
   if (user) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-zinc-100">
-        <div
-          className={`w-full max-w-md rounded-2xl bg-white shadow p-6 space-y-6 ${fontClass}`}
-        >
-          <h1 className="text-2xl font-semibold tracking-tight text-center">
-            {t.eventName}
-          </h1>
-
-          <div className="mt-6 text-center space-y-2">
-            <p className="text-lg font-semibold">
-              {lang === "en"
-                ? `Welcome, ${user.name}!`
-                : `${user.name} 欢迎你！`}
-            </p>
-            <p className="text-sm text-zinc-600">
-              {lang === "en"
-                ? "You’re already registered."
-                : "你已经登记好了。"}
-            </p>
-          </div>
-        </div>
+      <main className="min-h-screen flex items-stretch justify-center bg-zinc-100">
+        <LanguageToggle label={t.langButton} onToggle={toggleLang} />
+        <GamePage message={t} user={user} lang={lang} fontClass={fontClass} />
       </main>
     );
   }
 
-  // 📝 If no record yet, show the form
   return (
     <main className="min-h-screen flex items-center justify-center bg-zinc-100">
+      <LanguageToggle label={t.langButton} onToggle={toggleLang} />
+
       <div
         className={`w-full max-w-md rounded-2xl bg-white shadow p-6 space-y-6 ${fontClass}`}
       >
         <h1 className="text-2xl font-semibold tracking-tight text-center">
           {t.eventName}
         </h1>
-
-        <div className="flex justify-end">
-          <Button
-            onClick={() => setLang(lang === "en" ? "zh" : "en")}
-            className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition"
-          >
-            {t.langButton}
-          </Button>
-        </div>
 
         <div className="space-y-2">
           <h2 className="text-2xl font-semibold tracking-tight">{t.title}</h2>
@@ -160,7 +126,7 @@ export default function Home() {
             e.preventDefault();
             if (!userId) return;
 
-            const formData: NameSubmitType = { id: userId, name, lang };
+            const formData: UserRow = { id: userId, name };
             handleNameSubmit(formData);
           }}
         >
