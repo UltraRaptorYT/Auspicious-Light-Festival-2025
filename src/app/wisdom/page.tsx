@@ -3,10 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 // vite/webpack will only run this on the client because this is a client component.
 // Types are provided by the package; at runtime this is just normal JS.
-import Vosk, { createModel } from "vosk-browser";
+import { createModel } from "vosk-browser";
 
-const MODEL_URL =
-  "https://ccoreilly.github.io/vosk-browser/models/vosk-model-small-en-us-0.15.tar.gz";
+// const MODEL_URL =
+//   "https://ccoreilly.github.io/vosk-browser/models/vosk-model-small-cn-0.3.tar.gz";
+
+const MODEL_URL = "./vosk-model-small-cn-0.3.tar.gz";
 
 type Status = "loading-model" | "ready" | "listening" | "error";
 
