@@ -363,7 +363,7 @@ export default function GamePage({
         </DialogContent>
       </Dialog>
       <div className="flex flex-col space-y-4">
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 items-center justify-center">
           <h1 className="font-bold text-center text-lg underline underline-offset-4">
             &nbsp;{gameMessages[lang].scratchCard}&nbsp;
           </h1>
