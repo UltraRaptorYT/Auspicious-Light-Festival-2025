@@ -258,7 +258,7 @@ export default function GamePage({
           }}
           allowMultiple={false}
           scanDelay={0}
-          paused={openDialog}
+          paused={openDialog || openCorrect || openWelcomeDialog == "true"}
         />
       </div>
 

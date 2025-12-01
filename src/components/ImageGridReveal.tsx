@@ -82,8 +82,8 @@ export function ImageGridReveal({
               key={i}
               // onClick={() => toggleCell(i)}
               className={cn(
-                "w-full h-full border transition-colors text-white rounded-none flex items-center justify-center",
-                "border-white/40 bg-black hover:bg-black",
+                "w-full h-full border transition-colors rounded-none flex items-center justify-center",
+                "border-black/40 bg-white hover:bg-white text-black",
                 revealed[i] &&
                   "bg-transparent border-transparent hover:bg-transparent"
               )}

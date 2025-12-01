@@ -1,259 +1,222 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+// vite/webpack will only run this on the client because this is a client component.
+// Types are provided by the package; at runtime this is just normal JS.
+import Vosk, { createModel } from "vosk-browser";
 
-declare global {
-  interface Window {
-    webkitSpeechRecognition: any;
-    SpeechRecognition: any;
-  }
-}
+const MODEL_URL =
+  "https://ccoreilly.github.io/vosk-browser/models/vosk-model-small-en-us-0.15.tar.gz";
 
-const TARGET_PHRASE = "om ara pa cha na dhi";
+type Status = "loading-model" | "ready" | "listening" | "error";
 
-// --- Helpers --------------------------------------------------
+export default function VoskRealtimePage() {
+  const [status, setStatus] = useState<Status>("loading-model");
+  const [partial, setPartial] = useState("");
+  const [finalText, setFinalText] = useState("");
 
-// Normalize: lowercase, remove accents, keep letters only
-const normalize = (text: string) =>
-  text
-    .toLowerCase()
-    .normalize("NFD")
-    // remove accents
-    .replace(/\p{Diacritic}/gu, "")
-    // keep letters + spaces
-    .replace(/[^a-z\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  const modelRef = useRef<any>(null);
+  const recognizerRef = useRef<any>(null);
 
-// Levenshtein distance between 2 strings
-const levenshtein = (a: string, b: string): number => {
-  const m = a.length;
-  const n = b.length;
-  const dp: number[][] = Array.from({ length: m + 1 }, () =>
-    Array(n + 1).fill(0)
-  );
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
-  for (let i = 0; i <= m; i++) dp[i][0] = i;
-  for (let j = 0; j <= n; j++) dp[0][j] = j;
-
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      dp[i][j] = Math.min(
-        dp[i - 1][j] + 1, // delete
-        dp[i][j - 1] + 1, // insert
-        dp[i - 1][j - 1] + cost // substitute
-      );
-    }
-  }
-  return dp[m][n];
-};
-
-const targetCollapsed = normalize(TARGET_PHRASE).replace(/\s+/g, "");
-
-// Does this chunk contain something close to the mantra?
-const chunkContainsMantra = (chunk: string): boolean => {
-  const collapsed = normalize(chunk).replace(/\s+/g, "");
-  if (!collapsed) return false;
-
-  const len = targetCollapsed.length;
-  const maxDistance = 3; // allow up to 3 char errors
-
-  if (collapsed.length < len) {
-    return levenshtein(collapsed, targetCollapsed) <= maxDistance;
-  }
-
-  for (let i = 0; i <= collapsed.length - len; i++) {
-    const window = collapsed.slice(i, i + len);
-    const dist = levenshtein(window, targetCollapsed);
-    if (dist <= maxDistance) return true;
-  }
-  return false;
-};
-
-export default function HomePage() {
-  const [listening, setListening] = useState(false);
-  const [transcript, setTranscript] = useState("");
-  const [interim, setInterim] = useState("");
-  const [count, setCount] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-
-  const recognitionRef = useRef<any | null>(null);
-
+  // ---- load Vosk model once on mount ----
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    let cancelled = false;
 
-    const SpeechRecognition =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
+    async function initModel() {
+      try {
+        setStatus("loading-model");
+        console.log("Loading Vosk model…");
 
-    if (!SpeechRecognition) {
-      setError(
-        "Speech recognition is not supported in this browser. Try Chrome."
-      );
-      return;
+        const model = await createModel(MODEL_URL);
+        if (cancelled) {
+          model.terminate();
+          return;
+        }
+
+        modelRef.current = model;
+
+        // sample rate we'll request from getUserMedia
+        const sampleRate = 16000;
+        const recognizer = new model.KaldiRecognizer(sampleRate);
+
+        recognizerRef.current = recognizer;
+
+        // Final results (chunks of finished text)
+        recognizer.on("result", (message: any) => {
+          const text = message?.result?.text ?? "";
+          if (!text) return;
+
+          setFinalText((prev) => (prev ? prev + " " + text : text));
+          setPartial(""); // clear partial line when a final result arrives
+        });
+
+        // Live / partial text while you are speaking
+        recognizer.on("partialresult", (message: any) => {
+          const text = message?.result?.partial ?? "";
+          setPartial(text);
+        });
+
+        setStatus("ready");
+        console.log("Vosk ready.");
+      } catch (err) {
+        console.error(err);
+        setStatus("error");
+      }
     }
 
-    const recognition = new SpeechRecognition();
-    recognition.lang = "en-US"; // you can try other langs if your accent is different
-    recognition.continuous = true;
-    recognition.interimResults = true;
+    initModel();
 
-    recognition.onresult = (event: any) => {
-      let finalChunk = "";
-      let interimChunk = "";
-
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const result = event.results[i];
-        const text = result[0].transcript;
-
-        if (result.isFinal) {
-          finalChunk += " " + text;
-        } else {
-          interimChunk += " " + text;
-        }
-      }
-
-      if (finalChunk) {
-        // check this chunk for mantra
-        if (chunkContainsMantra(finalChunk)) {
-          setCount((prev) => prev + 1);
-        }
-
-        // append to global transcript
-        setTranscript((prev) => (prev + " " + finalChunk).trim());
-      }
-
-      setInterim(interimChunk.trim());
-    };
-
-    recognition.onerror = (event: any) => {
-      setError(event.error || "Unknown speech recognition error");
-      setListening(false);
-    };
-
-    recognition.onend = () => {
-      setListening(false);
-    };
-
-    recognitionRef.current = recognition;
-
+    // cleanup when page unmounts
     return () => {
-      recognition.stop();
-      recognitionRef.current = null;
+      cancelled = true;
+
+      if (processorRef.current) {
+        processorRef.current.disconnect();
+        processorRef.current.onaudioprocess = null;
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+      }
+      if (modelRef.current) {
+        modelRef.current.terminate();
+      }
     };
   }, []);
 
-  const startListening = () => {
-    if (!recognitionRef.current) {
-      setError("Speech recognition not available.");
-      return;
-    }
-    setError(null);
+  // ---- start mic & stream audio into Vosk ----
+  const startListening = async () => {
+    if (status !== "ready" || !recognizerRef.current) return;
+
     try {
-      recognitionRef.current.start();
-      setListening(true);
-    } catch (e) {
-      console.error(e);
+      const sampleRate = 16000;
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: false,
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          channelCount: 1,
+          sampleRate,
+        },
+      });
+
+      const AudioCtx =
+        window.AudioContext || (window as any).webkitAudioContext;
+      const audioContext = new AudioCtx({ sampleRate });
+
+      const source = audioContext.createMediaStreamSource(stream);
+      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+
+      processor.onaudioprocess = (event) => {
+        try {
+          // vosk-browser can take an AudioBuffer directly
+          // (acceptWaveformFloat is also available if you prefer float32 arrays)
+          recognizerRef.current.acceptWaveform(event.inputBuffer);
+        } catch (error) {
+          console.error("acceptWaveform failed:", error);
+        }
+      };
+
+      source.connect(processor);
+      // Optional: you can skip connecting to destination to avoid echo,
+      // but some browsers behave better if the node is in the graph.
+      processor.connect(audioContext.destination);
+
+      streamRef.current = stream;
+      audioContextRef.current = audioContext;
+      processorRef.current = processor;
+
+      setFinalText("");
+      setPartial("");
+      setStatus("listening");
+    } catch (err) {
+      console.error(err);
+      setStatus("error");
     }
   };
 
+  // ---- stop mic ----
   const stopListening = () => {
-    if (!recognitionRef.current) return;
-    recognitionRef.current.stop();
-    setListening(false);
+    if (processorRef.current) {
+      processorRef.current.disconnect();
+      processorRef.current.onaudioprocess = null;
+      processorRef.current = null;
+    }
+
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+
+    if (status === "listening") {
+      setStatus("ready");
+    }
   };
 
-  const clearTranscript = () => {
-    setTranscript("");
-    setInterim("");
-    setCount(0);
-  };
+  const disabledStart =
+    status === "loading-model" || status === "listening" || status === "error";
+  const disabledStop = status !== "listening";
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center px-4 py-8">
-      <div className="w-full max-w-xl border rounded-xl p-6 shadow-sm space-y-4">
-        <h1 className="text-2xl font-semibold text-center">
-          OM ARA PA CHA NA DHI Counter (Free Browser STT)
-        </h1>
-        <p className="text-sm text-gray-600 text-center">
-          Uses the browser&apos;s built-in speech recognition, plus fuzzy
-          matching, to detect <strong>“OM ARA PA CHA NA DHI”</strong> even when
-          it&apos;s transcribed slightly wrong.
-        </p>
+    <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-4 p-6">
+      <h1 className="text-2xl font-semibold">Vosk Browser – Live STT Demo</h1>
 
-        <div className="flex items-center justify-center gap-3">
-          <button
-            onClick={startListening}
-            disabled={listening}
-            className={`px-4 py-2 rounded-md text-sm font-medium border ${
-              listening
-                ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-                : "bg-green-600 text-white hover:bg-green-700"
-            }`}
-          >
-            Start Listening
-          </button>
-          <button
-            onClick={stopListening}
-            disabled={!listening}
-            className={`px-4 py-2 rounded-md text-sm font-medium border ${
-              listening
-                ? "bg-red-600 text-white hover:bg-red-700"
-                : "bg-gray-200 text-gray-500 cursor-not-allowed"
-            }`}
-          >
-            Stop
-          </button>
-          <button
-            onClick={clearTranscript}
-            className="px-4 py-2 rounded-md text-sm font-medium border bg-white hover:bg-gray-50"
-          >
-            Clear
-          </button>
-        </div>
+      <p className="text-sm text-gray-500">
+        Status:{" "}
+        <span className="font-mono">
+          {status === "loading-model" && "Loading model…"}
+          {status === "ready" && "Ready"}
+          {status === "listening" && "Listening"}
+          {status === "error" && "Error (check console)"}
+        </span>
+      </p>
 
-        <div className="flex justify-center items-center gap-2">
-          <span
-            className={`inline-block w-3 h-3 rounded-full ${
-              listening ? "bg-green-500 animate-pulse" : "bg-gray-400"
-            }`}
-          />
-          <span className="text-sm text-gray-700">
-            {listening ? "Listening…" : "Not listening"}
-          </span>
-        </div>
-
-        <div className="text-center">
-          <div className="text-sm text-gray-500">Detected count</div>
-          <div className="text-4xl font-bold mt-1">{count}</div>
-        </div>
-
-        {error && (
-          <div className="text-sm text-red-600 border border-red-200 bg-red-50 px-3 py-2 rounded-md">
-            Error: {error}
-          </div>
-        )}
-
-        <div className="space-y-3">
-          <div>
-            <h2 className="text-sm font-semibold mb-1">Transcript (final)</h2>
-            <div className="border rounded-md p-3 min-h-20 text-sm bg-gray-50 whitespace-pre-wrap">
-              {transcript || (
-                <span className="text-gray-400">No speech yet…</span>
-              )}
-            </div>
-          </div>
-
-          <div>
-            <h2 className="text-sm font-semibold mb-1">Interim (live)</h2>
-            <div className="border rounded-md p-3 min-h-[50px] text-sm bg-gray-50 whitespace-pre-wrap">
-              {interim || (
-                <span className="text-gray-400">Listening buffer…</span>
-              )}
-            </div>
-          </div>
-        </div>
+      <div className="flex gap-3">
+        <button
+          onClick={startListening}
+          disabled={disabledStart}
+          className="rounded-md border px-4 py-2 text-sm disabled:opacity-50"
+        >
+          🎙 Start
+        </button>
+        <button
+          onClick={stopListening}
+          disabled={disabledStop}
+          className="rounded-md border px-4 py-2 text-sm disabled:opacity-50"
+        >
+          ⏹ Stop
+        </button>
       </div>
+
+      <section className="mt-4 space-y-2">
+        <h2 className="text-sm font-medium text-gray-600">Live (partial):</h2>
+        <div className="min-h-[3rem] rounded-md border bg-gray-50 p-2 font-mono text-sm">
+          {partial || (
+            <span className="text-gray-400">Speak into the mic…</span>
+          )}
+        </div>
+      </section>
+
+      <section className="mt-4 space-y-2">
+        <h2 className="text-sm font-medium text-gray-600">Final transcript:</h2>
+        <textarea
+          className="h-40 w-full resize-none rounded-md border bg-gray-50 p-2 font-mono text-sm"
+          value={finalText}
+          readOnly
+        />
+      </section>
     </main>
   );
 }
