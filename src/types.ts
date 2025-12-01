@@ -8,8 +8,6 @@ export type UserRow = {
 export type QuestionType = {
   id: number;
   qn: Qn;
-  type: "reward" | "noreward" | "empty" | "temptation" | "virtue";
-  points: number;
   created_at: string;
 };
 
@@ -21,8 +19,10 @@ type FileQuestion = {
 
 type InputQuestion = {
   type: "INPUT";
-  question: string;
-  answer: string;
+  question_en: string;
+  question_zh: string;
+  answer_en: string;
+  answer_zh: string;
 };
 
 type GiftQuestion = {
