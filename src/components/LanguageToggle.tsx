@@ -8,11 +8,10 @@ export default function LanguageToggle({
   onToggle: () => void;
 }) {
   return (
-    <div className="fixed top-4 right-4 z-50">
+    <div className="fixed top-4 right-4 z-60 pointer-events-auto">
       <Button
-        type="button"
         onClick={onToggle}
-        className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition"
+        className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium transition"
       >
         {label}
       </Button>

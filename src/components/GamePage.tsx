@@ -1,4 +1,6 @@
-import { useState, useCallback, FormEvent } from "react";
+"use client";
+
+import { useState, useCallback, FormEvent, useEffect } from "react";
 import { Lang, UserRow } from "@/types";
 import {
   Scanner as ScannerComp,
@@ -22,6 +24,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { useLocalStorageState } from "@/lib/hooks/useLocalStorageState";
 import { gameMessages } from "@/translate";
+import { ImageGridReveal } from "@/components/ImageGridReveal";
 
 type GamePageProps = {
   lang: Lang;
@@ -40,6 +43,34 @@ export default function GamePage({
   const [openDialog, setOpenDialog] = useState(false);
   const [answerInput, setAnswerInput] = useState("");
   const [openCorrect, setOpenCorrect] = useState(false);
+  const rows = 6;
+  const cols = 3;
+  const total = rows * cols;
+  const [revealed, setRevealed] = useState<boolean[]>(() =>
+    Array(total).fill(false)
+  );
+
+  useEffect(() => {
+    const fetchAnswered = async () => {
+      const { data, error } = await supabase
+        .from("auspicious_light_25_users_qr")
+        .select("qr_id")
+        .eq("user_id", user.id);
+
+      if (error) {
+        console.error("Failed to fetch answered questions:", error);
+        return;
+      }
+
+      // qr_id assumed to map 1..N corresponding to your grid cells (i+1)
+      const answeredSet = new Set((data ?? []).map((row) => Number(row.qr_id)));
+
+      setRevealed((prev) => prev.map((_, i) => answeredSet.has(i + 1)));
+    };
+
+    fetchAnswered();
+  }, [user.id, total]);
+
   const [openWelcomeDialog, setOpenWelcomeDialog] = useLocalStorageState(
     "welcomeDialog",
     "true"
@@ -181,6 +212,9 @@ export default function GamePage({
 
     setOpenCorrect(true);
     setOpenDialog(false);
+    setRevealed((prev) =>
+      prev.map((revealed, i) => revealed || i + 1 === question.id)
+    );
   };
 
   return (
@@ -238,12 +272,12 @@ export default function GamePage({
             <DialogTitle>
               {lang === "en"
                 ? `Welcome, ${user.name}!`
-                : `${user.name} 欢迎你！`}
+                : `${user.name} 欢迎您！`}
             </DialogTitle>
             <DialogDescription>
               {lang === "en"
                 ? "You're already registered."
-                : "你已经登记好了。"}
+                : "您已经登记好了。"}
             </DialogDescription>
           </DialogHeader>
         </DialogContent>
@@ -253,11 +287,35 @@ export default function GamePage({
         Trigger Scan
       </Button>
 
+      {/* Result dialog */}
+      <Dialog open={openCorrect} onOpenChange={setOpenCorrect}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader className="gap-5">
+            <DialogTitle className="text-xl">
+              {lang == "en"
+                ? `Congratulations on solving Station #${question?.id}`
+                : `恭喜您完成了第 #${question?.id} 站`}
+              {/* {getDialogTitle(question, "result")} */}
+            </DialogTitle>
+            <DialogDescription className="text-base whitespace-pre-line">
+              {/* {getDialogDescription(question, "result")} */}
+              {revealed.filter((e) => !e).length == 0
+                ? gameMessages[lang].scratchCardComplete
+                : gameMessages[lang].scratchCardIncomplete}
+            </DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
+
       {/* Question Dialog */}
       <Dialog open={openDialog}>
         <DialogContent showCloseButton={false}>
           <DialogHeader>
-            <DialogTitle>{"Welcome to Station #" + question?.id}</DialogTitle>
+            <DialogTitle>
+              {lang == "en"
+                ? `Welcome to Station #${question?.id}`
+                : `欢迎您到第 #${question?.id} 站`}
+            </DialogTitle>
             {/* <DialogDescription className="whitespace-pre-line">
               {getDialogDescription(question, "challenge")}
             </DialogDescription> */}
@@ -273,11 +331,11 @@ export default function GamePage({
               </p>
 
               <div className="grid w-full max-w-sm items-center gap-3">
-                <Label htmlFor="answer">Answer</Label>
+                <Label htmlFor="answer">{gameMessages[lang].answerLabel}</Label>
                 <Input
                   id="answer"
                   type="text"
-                  placeholder="Answer"
+                  placeholder={gameMessages[lang].answerLabel}
                   value={answerInput}
                   onChange={(e) => setAnswerInput(e.target.value)}
                 />
@@ -285,7 +343,7 @@ export default function GamePage({
 
               {/* ACTION ROW */}
               <div className="flex flex-row items-center justify-center gap-3">
-                <Button type="submit">Submit</Button>
+                <Button type="submit">{gameMessages[lang].submitLabel}</Button>
 
                 <DialogClose asChild>
                   <Button
@@ -296,7 +354,7 @@ export default function GamePage({
                       setOpenDialog(false);
                     }}
                   >
-                    I give up
+                    {gameMessages[lang].giveUpLabel}
                   </Button>
                 </DialogClose>
               </div>
@@ -304,6 +362,24 @@ export default function GamePage({
           ) : null}
         </DialogContent>
       </Dialog>
+      <div className="flex flex-col space-y-4">
+        <div className="flex flex-col gap-2">
+          <h1 className="font-bold text-center text-lg underline underline-offset-4">
+            &nbsp;{gameMessages[lang].scratchCard}&nbsp;
+          </h1>
+          <p className="text-base">
+            {gameMessages[lang].scratchCardDescription}
+          </p>
+        </div>
+        <ImageGridReveal
+          src="/auspicious_light_bg.jpeg"
+          alt="auspicious_light_bg"
+          rows={rows}
+          cols={cols}
+          revealed={revealed}
+          onRevealChange={(next) => setRevealed(next)}
+        />
+      </div>
     </div>
   );
 }

@@ -11,7 +11,7 @@ import LanguageToggle from "@/components/LanguageToggle";
 import GamePage from "@/components/GamePage";
 
 export default function Home() {
-  const [lang, setLang] = useLocalStorageState<Lang>("lang", "en");
+  const [lang, setLang] = useLocalStorageState<Lang>("lang", "zh");
   const [name, setName] = useState("");
   const [user, setUser] = useState<UserRow | null>(null);
   const [isCheckingUser, setIsCheckingUser] = useState(true);

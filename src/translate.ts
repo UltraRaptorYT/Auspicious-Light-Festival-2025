@@ -29,6 +29,15 @@ export const gameMessages: Record<Lang, Record<string, string>> = {
     correctAnswer: "Correct answer! 🎉",
     incorrectAnswer: "Incorrect answer, try again!",
     somethingWentWrong: "Something went wrong.",
+    answerLabel: "Answer",
+    submitLabel: "Submit",
+    giveUpLabel: "I give up",
+    scratchCard: "Scratch Card",
+    scratchCardDescription:
+      "Complete the Scratch Card by visitng the different stations",
+    scratchCardComplete: "Head over to Level 4 Counter to collect your prize!",
+    scratchCardIncomplete:
+      "You have unlocked 1 part of the scratch card! More to go!",
   },
   zh: {
     giveUp: "您已放弃！",
@@ -39,5 +48,13 @@ export const gameMessages: Record<Lang, Record<string, string>> = {
     correctAnswer: "回答正确！🎉",
     incorrectAnswer: "回答不正确，请再试一次！",
     somethingWentWrong: "发生了一些错误。",
+    answerLabel: "答案",
+    submitLabel: "提交答案",
+    giveUpLabel: "我放弃了",
+    scratchCard: "刮刮卡",
+    scratchCardDescription: "前往不同站点集章，完成你的刮刮卡",
+    scratchCardComplete: "请前往四楼柜台领取您的奖品！",
+    scratchCardIncomplete: `你已经解锁了刮刮卡的 1 个部分！
+    继续加油！`,
   },
 };
