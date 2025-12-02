@@ -13,6 +13,7 @@ export default function VoskRealtimePage() {
   const [finalText, setFinalText] = useState("");
   const [deCount, setDeCount] = useState(0);
   const detectedPhrase = "的";
+  const sensitive = false;
 
   const modelRef = useRef<any>(null);
   const recognizerRef = useRef<any>(null);
@@ -83,6 +84,30 @@ export default function VoskRealtimePage() {
     restoreSerial();
   }, []);
 
+  // ---- recompute 的 count whenever finalText changes ----
+  useEffect(() => {
+    if (sensitive) return;
+    // split by whitespace into tokens
+    const tokens = finalText.trim().split(/\s+/);
+
+    let count = 0;
+    let prevIsDe = false;
+
+    for (const token of tokens) {
+      if (token === "的") {
+        // only count when we *enter* a run of 的
+        if (!prevIsDe) {
+          count++;
+        }
+        prevIsDe = true;
+      } else {
+        prevIsDe = false;
+      }
+    }
+
+    setDeCount(count);
+  }, [finalText]);
+
   // optional: listen for unplug
   useEffect(() => {
     if (!("serial" in navigator)) return;
@@ -120,7 +145,10 @@ export default function VoskRealtimePage() {
 
         modelRef.current = model;
         const sampleRate = 16000;
-        const grammar = JSON.stringify([detectedPhrase]);
+
+        const grammar = sensitive
+          ? JSON.stringify([detectedPhrase])
+          : undefined;
         const recognizer = new model.KaldiRecognizer(sampleRate, grammar);
 
         recognizerRef.current = recognizer;
@@ -129,7 +157,7 @@ export default function VoskRealtimePage() {
           const text = message?.result?.text ?? "";
           if (!text) return;
 
-          if (text.includes(detectedPhrase)) {
+          if (text.includes(detectedPhrase) && sensitive) {
             setDeCount((prev) => prev + 1);
           }
           // still keep a transcript if you want to see it
