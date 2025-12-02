@@ -1,14 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-// vite/webpack will only run this on the client because this is a client component.
-// Types are provided by the package; at runtime this is just normal JS.
 import { createModel } from "vosk-browser";
 
 // const MODEL_URL =
 //   "https://ccoreilly.github.io/vosk-browser/models/vosk-model-small-cn-0.3.tar.gz";
 
-const MODEL_URL = "./vosk-model-small-cn-0.3.tar.gz";
+const MODEL_URL = "/vosk-model-small-cn-0.3.tar.gz";
 
 type Status = "loading-model" | "ready" | "listening" | "error";
 
@@ -172,53 +170,53 @@ export default function VoskRealtimePage() {
   const disabledStop = status !== "listening";
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-4 p-6">
-      <h1 className="text-2xl font-semibold">Vosk Browser – Live STT Demo</h1>
-
-      <p className="text-sm text-gray-500">
-        Status:{" "}
-        <span className="font-mono">
-          {status === "loading-model" && "Loading model…"}
-          {status === "ready" && "Ready"}
-          {status === "listening" && "Listening"}
-          {status === "error" && "Error (check console)"}
-        </span>
-      </p>
-
-      <div className="flex gap-3">
-        <button
-          onClick={startListening}
-          disabled={disabledStart}
-          className="rounded-md border px-4 py-2 text-sm disabled:opacity-50"
-        >
-          🎙 Start
-        </button>
-        <button
-          onClick={stopListening}
-          disabled={disabledStop}
-          className="rounded-md border px-4 py-2 text-sm disabled:opacity-50"
-        >
-          ⏹ Stop
-        </button>
-      </div>
-
-      <section className="mt-4 space-y-2">
-        <h2 className="text-sm font-medium text-gray-600">Live (partial):</h2>
-        <div className="min-h-[3rem] rounded-md border bg-gray-50 p-2 font-mono text-sm">
-          {partial || (
-            <span className="text-gray-400">Speak into the mic…</span>
-          )}
+    <>
+      <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-4 p-6">
+        <h1 className="text-2xl font-semibold">Vosk Browser – Live STT Demo</h1>
+        <p className="text-sm text-gray-500">
+          Status:{" "}
+          <span className="font-mono">
+            {status === "loading-model" && "Loading model…"}
+            {status === "ready" && "Ready"}
+            {status === "listening" && "Listening"}
+            {status === "error" && "Error (check console)"}
+          </span>
+        </p>
+        <div className="flex gap-3">
+          <button
+            onClick={startListening}
+            disabled={disabledStart}
+            className="rounded-md border px-4 py-2 text-sm disabled:opacity-50"
+          >
+            🎙 Start
+          </button>
+          <button
+            onClick={stopListening}
+            disabled={disabledStop}
+            className="rounded-md border px-4 py-2 text-sm disabled:opacity-50"
+          >
+            ⏹ Stop
+          </button>
         </div>
-      </section>
-
-      <section className="mt-4 space-y-2">
-        <h2 className="text-sm font-medium text-gray-600">Final transcript:</h2>
-        <textarea
-          className="h-40 w-full resize-none rounded-md border bg-gray-50 p-2 font-mono text-sm"
-          value={finalText}
-          readOnly
-        />
-      </section>
-    </main>
+        <section className="mt-4 space-y-2">
+          <h2 className="text-sm font-medium text-gray-600">Live (partial):</h2>
+          <div className="min-h-12 rounded-md border bg-gray-50 p-2 font-mono text-sm">
+            {partial || (
+              <span className="text-gray-400">Speak into the mic…</span>
+            )}
+          </div>
+        </section>
+        <section className="mt-4 space-y-2">
+          <h2 className="text-sm font-medium text-gray-600">
+            Final transcript:
+          </h2>
+          <textarea
+            className="h-40 w-full resize-none rounded-md border bg-gray-50 p-2 font-mono text-sm"
+            value={finalText}
+            readOnly
+          />
+        </section>
+      </main>
+    </>
   );
 }

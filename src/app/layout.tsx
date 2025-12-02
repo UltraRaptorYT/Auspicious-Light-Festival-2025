@@ -1,3 +1,4 @@
+import Head from "next/head";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -13,6 +14,8 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const MODEL_URL = "/vosk-model-small-cn-0.3.tar.gz";
+
 export const metadata: Metadata = {
   title: "Auspicious Light Festival 2025",
   description: "Auspicious Light Festival 2025 by BW Monastery",
@@ -25,6 +28,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <Head>
+        <link
+          rel="preload"
+          href={MODEL_URL}
+          as="fetch"
+          crossOrigin="anonymous"
+        />
+      </Head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
