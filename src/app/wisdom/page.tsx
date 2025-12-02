@@ -11,7 +11,8 @@ export default function VoskRealtimePage() {
   const [status, setStatus] = useState<Status>("loading-model");
   const [partial, setPartial] = useState("");
   const [finalText, setFinalText] = useState("");
-  const [deCount, setDeCount] = useState(0); // 🔢 how many 的
+  const [deCount, setDeCount] = useState(0);
+  const detectedPhrase = "的";
 
   const modelRef = useRef<any>(null);
   const recognizerRef = useRef<any>(null);
@@ -20,30 +21,89 @@ export default function VoskRealtimePage() {
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  // ---- recompute 的 count whenever finalText changes ----
-  useEffect(() => {
-    // split by whitespace into tokens
-    const tokens = finalText.trim().split(/\s+/);
+  // serial
+  const portRef = useRef<any>(null);
+  const writerRef = useRef<WritableStreamDefaultWriter<Uint8Array> | null>(
+    null
+  );
+  const [serialStatus, setSerialStatus] = useState<
+    "disconnected" | "connecting" | "connected" | "error"
+  >("disconnected");
 
-    let count = 0;
-    let prevIsDe = false;
+  const openPort = async (port: any) => {
+    console.log("Opening port...");
+    await port.open({ baudRate: 9600 });
+    const writer = port.writable?.getWriter();
+    if (!writer) throw new Error("No writable stream on serial port");
 
-    for (const token of tokens) {
-      if (token === "的") {
-        // only count when we *enter* a run of 的
-        if (!prevIsDe) {
-          count++;
-        }
-        prevIsDe = true;
-      } else {
-        prevIsDe = false;
+    portRef.current = port;
+    writerRef.current = writer;
+    setSerialStatus("connected");
+    console.log("Serial connected");
+  };
+
+  const connectSerial = async () => {
+    try {
+      if (!("serial" in navigator)) {
+        alert("Web Serial API not supported in this browser.");
+        return;
       }
+      setSerialStatus("connecting");
+
+      console.log("Requesting serial port...");
+      const port = await (navigator as any).serial.requestPort();
+      console.log("Port chosen:", port.getInfo?.());
+      await openPort(port);
+    } catch (err: any) {
+      console.error("Serial connect error:", err.name, err.message, err);
+      setSerialStatus("error");
     }
+  };
 
-    setDeCount(count);
-  }, [finalText]);
+  useEffect(() => {
+    const restoreSerial = async () => {
+      try {
+        if (!("serial" in navigator)) return;
 
-  // ---- load Vosk model once on mount ----
+        const ports = await (navigator as any).serial.getPorts();
+        if (ports.length === 0) {
+          console.log("No previously authorized serial ports");
+          return;
+        }
+
+        console.log("Restoring serial from previous permission…");
+        setSerialStatus("connecting");
+        await openPort(ports[0]);
+      } catch (err) {
+        console.error("Error restoring serial port:", err);
+        setSerialStatus("error");
+      }
+    };
+
+    restoreSerial();
+  }, []);
+
+  // optional: listen for unplug
+  useEffect(() => {
+    if (!("serial" in navigator)) return;
+
+    const handleDisconnect = () => {
+      console.log("Serial device disconnected");
+      setSerialStatus("disconnected");
+      portRef.current = null;
+      writerRef.current = null;
+    };
+
+    (navigator as any).serial.addEventListener("disconnect", handleDisconnect);
+    return () => {
+      (navigator as any).serial.removeEventListener(
+        "disconnect",
+        handleDisconnect
+      );
+    };
+  }, []);
+
+  // ----- load Vosk model once on mount -----
   useEffect(() => {
     let cancelled = false;
 
@@ -59,21 +119,26 @@ export default function VoskRealtimePage() {
         }
 
         modelRef.current = model;
-
         const sampleRate = 16000;
-        const recognizer = new model.KaldiRecognizer(sampleRate);
+        const grammar = JSON.stringify([detectedPhrase]);
+        const recognizer = new model.KaldiRecognizer(sampleRate, grammar);
+
         recognizerRef.current = recognizer;
 
-        // Final results (chunks of finished text)
         recognizer.on("result", (message: any) => {
           const text = message?.result?.text ?? "";
           if (!text) return;
 
+          if (text.includes(detectedPhrase)) {
+            setDeCount((prev) => prev + 1);
+          }
+          // still keep a transcript if you want to see it
           setFinalText((prev) => (prev ? prev + " " + text : text));
+
+          // clear partial line
           setPartial("");
         });
 
-        // Live / partial text while you are speaking
         recognizer.on("partialresult", (message: any) => {
           const text = message?.result?.partial ?? "";
           setPartial(text);
@@ -89,7 +154,6 @@ export default function VoskRealtimePage() {
 
     initModel();
 
-    // cleanup when page unmounts
     return () => {
       cancelled = true;
 
@@ -106,12 +170,25 @@ export default function VoskRealtimePage() {
       if (modelRef.current) {
         modelRef.current.terminate?.();
       }
+
+      // close serial
+      (async () => {
+        try {
+          if (writerRef.current) {
+            await writerRef.current.close();
+          }
+          if (portRef.current) {
+            await portRef.current.close();
+          }
+        } catch (e) {
+          console.error("Error closing serial:", e);
+        }
+      })();
     };
   }, []);
 
-  // ---- start mic & stream audio into Vosk ----
+  // ----- start mic & stream audio into Vosk -----
   const startListening = async () => {
-    // don't start twice
     if (!recognizerRef.current || streamRef.current) return;
 
     try {
@@ -132,7 +209,7 @@ export default function VoskRealtimePage() {
       const audioContext = new AudioCtx({ sampleRate });
 
       const source = audioContext.createMediaStreamSource(stream);
-      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      const processor = audioContext.createScriptProcessor(1024, 1, 1);
 
       processor.onaudioprocess = (event) => {
         try {
@@ -165,7 +242,7 @@ export default function VoskRealtimePage() {
     }
   }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ---- stop mic ----
+  // ----- stop mic -----
   const stopListening = () => {
     if (processorRef.current) {
       processorRef.current.disconnect();
@@ -188,6 +265,27 @@ export default function VoskRealtimePage() {
     }
   };
 
+  // helper to send current count to Arduino
+  const sendCountToSerial = async (count: number) => {
+    if (!writerRef.current) return;
+    const encoder = new TextEncoder();
+    // Example protocol: just send the number + newline, e.g. "3\n"
+    const data = encoder.encode(`${count}\n`);
+    try {
+      await writerRef.current.write(data);
+    } catch (err) {
+      console.error("Serial write error:", err);
+      setSerialStatus("error");
+    }
+  };
+
+  // 🔄 whenever deCount changes AND serial is connected, send it
+  useEffect(() => {
+    if (serialStatus === "connected") {
+      sendCountToSerial(deCount);
+    }
+  }, [deCount, serialStatus]);
+
   const disabledStart =
     status === "loading-model" || status === "listening" || status === "error";
   const disabledStop = status !== "listening";
@@ -196,7 +294,7 @@ export default function VoskRealtimePage() {
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-4 p-6">
       <h1 className="text-2xl font-semibold">Vosk Browser – Live STT Demo</h1>
       <p className="text-sm text-gray-500">
-        Status:{" "}
+        STT Status:{" "}
         <span className="font-mono">
           {status === "loading-model" && "Loading model…"}
           {status === "ready" && "Ready (mic will auto-start)"}
@@ -205,13 +303,23 @@ export default function VoskRealtimePage() {
         </span>
       </p>
 
-      {/* 的 Counter */}
-      <p className="text-sm text-gray-700">
-        Count of <span className="font-mono">"的"</span> in final transcript:{" "}
-        <span className="font-bold">{deCount}</span>
+      <p className="text-sm text-gray-500">
+        Serial:{" "}
+        <span className="font-mono">
+          {serialStatus === "disconnected" && "Disconnected"}
+          {serialStatus === "connecting" && "Connecting…"}
+          {serialStatus === "connected" && "Connected"}
+          {serialStatus === "error" && "Error – see console"}
+        </span>
       </p>
 
       <div className="flex gap-3">
+        <button
+          onClick={connectSerial}
+          className="rounded-md border px-4 py-2 text-sm"
+        >
+          🔌 Connect Arduino
+        </button>
         <button
           onClick={startListening}
           disabled={disabledStart}
@@ -227,6 +335,11 @@ export default function VoskRealtimePage() {
           ⏹ Stop
         </button>
       </div>
+
+      <p className="text-sm text-gray-700">
+        Count of <span className="font-mono">"的"</span> (runs):{" "}
+        <span className="font-bold">{deCount}</span>
+      </p>
 
       <section className="mt-4 space-y-2">
         <h2 className="text-sm font-medium text-gray-600">Live (partial):</h2>
