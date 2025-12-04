@@ -11,12 +11,6 @@ export type QuestionType = {
   created_at: string;
 };
 
-type FileQuestion = {
-  type: "FILE";
-  question: string;
-  src: string;
-};
-
 type InputQuestion = {
   type: "INPUT";
   question_en: string;
@@ -25,14 +19,32 @@ type InputQuestion = {
   answer_zh: string;
 };
 
-type GiftQuestion = {
-  type: "GIFT";
-  question: string;
+type MatchQuestion = {
+  type: "MATCH";
+  question_en: string;
+  question_zh: string;
+  answer_en: Record<string, string>;
+  answer_zh: Record<string, string>;
+  left: Record<Lang, string>;
+  right: Record<Lang, string>;
+  dropbox: Record<Lang, string>;
+  used: Record<Lang, string>;
 };
 
-type TaskQuestion = {
-  type: "TASK";
-  question: string;
-};
+// type FileQuestion = {
+//   type: "FILE";
+//   question: string;
+//   src: string;
+// };
 
-type Qn = FileQuestion | InputQuestion | GiftQuestion | TaskQuestion;
+// type GiftQuestion = {
+//   type: "GIFT";
+//   question: string;
+// };
+
+// type TaskQuestion = {
+//   type: "TASK";
+//   question: string;
+// };
+
+type Qn = InputQuestion | MatchQuestion;

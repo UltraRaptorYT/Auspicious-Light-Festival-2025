@@ -17,14 +17,13 @@ import {
   DialogHeader,
   DialogTitle,
   // DialogFooter,
-  DialogClose,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { useLocalStorageState } from "@/lib/hooks/useLocalStorageState";
 import { gameMessages } from "@/translate";
 import { ImageGridReveal } from "@/components/ImageGridReveal";
+import MatchQuestionForm from "@/components/game/MatchQuestionForm";
+import InputQuestionForm from "@/components/game/InputQuestionForm";
 
 type GamePageProps = {
   lang: Lang;
@@ -283,7 +282,7 @@ export default function GamePage({
         </DialogContent>
       </Dialog>
 
-      <Button onClick={() => processCode(`auspicious_light_${1}`)}>
+      <Button onClick={() => processCode(`auspicious_light_${3}`)}>
         Trigger Scan
       </Button>
 
@@ -322,43 +321,45 @@ export default function GamePage({
           </DialogHeader>
 
           {/* Challenge content */}
-          {question?.qn.type === "INPUT" ? (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <p>
-                {lang == "en"
-                  ? question.qn.question_en
-                  : question.qn.question_zh}
-              </p>
+          {question && question.qn.type === "INPUT" && (
+            <InputQuestionForm
+              question={question}
+              lang={lang}
+              onCorrect={async () => {
+                const ok = await completeChallenge(question);
+                if (!ok) return;
 
-              <div className="grid w-full max-w-sm items-center gap-3">
-                <Label htmlFor="answer">{gameMessages[lang].answerLabel}</Label>
-                <Input
-                  id="answer"
-                  type="text"
-                  placeholder={gameMessages[lang].answerLabel}
-                  value={answerInput}
-                  onChange={(e) => setAnswerInput(e.target.value)}
-                />
-              </div>
+                setOpenCorrect(true);
+                setOpenDialog(false);
+                setRevealed((prev) =>
+                  prev.map(
+                    (revealedCell, i) => revealedCell || i + 1 === question.id
+                  )
+                );
+              }}
+              onGiveUp={() => {
+                toast.info(gameMessages[lang].giveUp);
+                setOpenDialog(false);
+              }}
+            />
+          )}
+          {question?.qn.type === "MATCH" ? (
+            <MatchQuestionForm
+              question={question}
+              lang={lang}
+              onCorrect={async () => {
+                const ok = await completeChallenge(question);
+                if (!ok) return;
 
-              {/* ACTION ROW */}
-              <div className="flex flex-row items-center justify-center gap-3">
-                <Button type="submit">{gameMessages[lang].submitLabel}</Button>
-
-                <DialogClose asChild>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    onClick={() => {
-                      toast.info(gameMessages[lang].giveUp);
-                      setOpenDialog(false);
-                    }}
-                  >
-                    {gameMessages[lang].giveUpLabel}
-                  </Button>
-                </DialogClose>
-              </div>
-            </form>
+                setOpenCorrect(true);
+                setOpenDialog(false);
+                setRevealed((prev) =>
+                  prev.map(
+                    (revealedCell, i) => revealedCell || i + 1 === question.id
+                  )
+                );
+              }}
+            />
           ) : null}
         </DialogContent>
       </Dialog>
