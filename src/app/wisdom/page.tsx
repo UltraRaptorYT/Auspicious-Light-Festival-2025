@@ -12,6 +12,7 @@ export default function VoskRealtimePage() {
   const [partial, setPartial] = useState("");
   const [finalText, setFinalText] = useState("");
   const [deCount, setDeCount] = useState(0);
+
   const detectedPhrase = "的";
   const sensitive = false;
 
@@ -31,6 +32,43 @@ export default function VoskRealtimePage() {
     "disconnected" | "connecting" | "connected" | "error"
   >("disconnected");
 
+  // ---- inactivity config ----
+  const INACTIVITY_MS = 15_000;
+  const lastActivityRef = useRef<number>(0);
+  const [idleLeftMs, setIdleLeftMs] = useState(INACTIVITY_MS);
+
+  const markActivity = () => {
+    lastActivityRef.current = Date.now();
+  };
+
+  // ---- incremental "的" run tracker (keeps transcript) ----
+  const lastWasDeRef = useRef(false);
+
+  const addDeRunsFromChunk = (chunk: string) => {
+    let added = 0;
+
+    // Chinese output may not be space-separated.
+    for (const ch of chunk) {
+      if (ch === "的") {
+        if (!lastWasDeRef.current) {
+          added += 5; // your scoring rule
+        }
+        lastWasDeRef.current = true;
+      } else if (ch.trim() !== "") {
+        lastWasDeRef.current = false;
+      }
+    }
+
+    if (added) setDeCount((prev) => prev + added);
+  };
+
+  const resetCounterOnly = () => {
+    setDeCount(0);
+    setPartial("");
+    lastWasDeRef.current = false;
+  };
+
+  // ---- serial helpers ----
   const openPort = async (port: any) => {
     console.log("Opening port...");
     await port.open({ baudRate: 9600 });
@@ -84,30 +122,6 @@ export default function VoskRealtimePage() {
     restoreSerial();
   }, []);
 
-  // ---- recompute 的 count whenever finalText changes ----
-  useEffect(() => {
-    if (sensitive) return;
-    // split by whitespace into tokens
-    const tokens = finalText.trim().split(/\s+/);
-
-    let count = 0;
-    let prevIsDe = false;
-
-    for (const token of tokens) {
-      if (token === "的") {
-        // only count when we *enter* a run of 的
-        if (!prevIsDe) {
-          count += 5;
-        }
-        prevIsDe = true;
-      } else {
-        prevIsDe = false;
-      }
-    }
-
-    setDeCount(count);
-  }, [finalText]);
-
   // optional: listen for unplug
   useEffect(() => {
     if (!("serial" in navigator)) return;
@@ -127,6 +141,36 @@ export default function VoskRealtimePage() {
       );
     };
   }, []);
+
+  // ---- inactivity countdown + reset loop ----
+  useEffect(() => {
+    if (status !== "listening") {
+      setIdleLeftMs(INACTIVITY_MS);
+      return;
+    }
+
+    markActivity();
+    setIdleLeftMs(INACTIVITY_MS);
+
+    const id = window.setInterval(() => {
+      const idle = Date.now() - lastActivityRef.current;
+      const left = Math.max(0, INACTIVITY_MS - idle);
+
+      setIdleLeftMs(left);
+
+      if (idle >= INACTIVITY_MS) {
+        setDeCount(0);
+        lastWasDeRef.current = false;
+        setPartial("");
+
+        // prevent repeated resets every tick
+        markActivity();
+        setIdleLeftMs(INACTIVITY_MS);
+      }
+    }, 250);
+
+    return () => window.clearInterval(id);
+  }, [status]);
 
   // ----- load Vosk model once on mount -----
   useEffect(() => {
@@ -149,27 +193,35 @@ export default function VoskRealtimePage() {
         const grammar = sensitive
           ? JSON.stringify([detectedPhrase])
           : undefined;
-        const recognizer = new model.KaldiRecognizer(sampleRate, grammar);
 
+        const recognizer = new model.KaldiRecognizer(sampleRate, grammar);
         recognizerRef.current = recognizer;
 
         recognizer.on("result", (message: any) => {
           const text = message?.result?.text ?? "";
           if (!text) return;
 
-          if (text.includes(detectedPhrase) && sensitive) {
+          markActivity();
+
+          if (!sensitive) {
+            addDeRunsFromChunk(text);
+          } else if (text.includes(detectedPhrase)) {
             setDeCount((prev) => prev + 1);
           }
-          // still keep a transcript if you want to see it
-          setFinalText((prev) => (prev ? prev + " " + text : text));
 
-          // clear partial line
+          setFinalText((prev) => (prev ? prev + " " + text : text));
           setPartial("");
         });
+
+        const isMeaningfulPartial = (t: string) => /[\u4e00-\u9fff]/.test(t); // any CJK char
 
         recognizer.on("partialresult", (message: any) => {
           const text = message?.result?.partial ?? "";
           setPartial(text);
+
+          if (isMeaningfulPartial(text)) {
+            markActivity();
+          }
         });
 
         setStatus("ready");
@@ -254,9 +306,13 @@ export default function VoskRealtimePage() {
       audioContextRef.current = audioContext;
       processorRef.current = processor;
 
-      setFinalText("");
       setPartial("");
       setStatus("listening");
+
+      // reset counting state for a fresh run while keeping transcript
+      lastWasDeRef.current = false;
+      markActivity();
+      setIdleLeftMs(INACTIVITY_MS);
     } catch (err) {
       console.error("getUserMedia / audio init failed:", err);
       setStatus("error");
@@ -297,7 +353,6 @@ export default function VoskRealtimePage() {
   const sendCountToSerial = async (count: number) => {
     if (!writerRef.current) return;
     const encoder = new TextEncoder();
-    // Example protocol: just send the number + newline, e.g. "3\n"
     const data = encoder.encode(`${count}\n`);
     try {
       await writerRef.current.write(data);
@@ -318,9 +373,12 @@ export default function VoskRealtimePage() {
     status === "loading-model" || status === "listening" || status === "error";
   const disabledStop = status !== "listening";
 
+  const idleSeconds = Math.ceil(idleLeftMs / 1000);
+
   return (
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-4 p-6">
       <h1 className="text-2xl font-semibold">Vosk Browser – Live STT Demo</h1>
+
       <p className="text-sm text-gray-500">
         STT Status:{" "}
         <span className="font-mono">
@@ -338,6 +396,13 @@ export default function VoskRealtimePage() {
           {serialStatus === "connecting" && "Connecting…"}
           {serialStatus === "connected" && "Connected"}
           {serialStatus === "error" && "Error – see console"}
+        </span>
+      </p>
+
+      <p className="text-sm text-gray-500">
+        Inactivity reset in:{" "}
+        <span className="font-mono">
+          {status === "listening" ? `${idleSeconds}s` : "—"}
         </span>
       </p>
 
