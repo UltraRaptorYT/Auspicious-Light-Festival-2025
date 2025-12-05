@@ -97,7 +97,7 @@ export default function VoskRealtimePage() {
       if (token === "的") {
         // only count when we *enter* a run of 的
         if (!prevIsDe) {
-          count++;
+          count += 5;
         }
         prevIsDe = true;
       } else {
