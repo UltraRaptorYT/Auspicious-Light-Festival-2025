@@ -24,6 +24,7 @@ import { gameMessages } from "@/translate";
 import { ImageGridReveal } from "@/components/ImageGridReveal";
 import MatchQuestionForm from "@/components/game/MatchQuestionForm";
 import InputQuestionForm from "@/components/game/InputQuestionForm";
+import SelectQuestionForm from "@/components/game/SelectQuestionForm";
 
 type GamePageProps = {
   lang: Lang;
@@ -282,7 +283,7 @@ export default function GamePage({
         </DialogContent>
       </Dialog>
 
-      <Button onClick={() => processCode(`auspicious_light_${3}`)}>
+      <Button onClick={() => processCode(`auspicious_light_${16}`)}>
         Trigger Scan
       </Button>
 
@@ -358,6 +359,34 @@ export default function GamePage({
                     (revealedCell, i) => revealedCell || i + 1 === question.id
                   )
                 );
+              }}
+              onGiveUp={() => {
+                toast.info(gameMessages[lang].giveUp);
+                setOpenDialog(false);
+              }}
+            />
+          ) : null}
+
+          {question?.qn.type === "SELECT" ? (
+            <SelectQuestionForm
+              question={question}
+              lang={lang}
+              onCorrect={async () => {
+                // Optional: store what the user chose
+                const ok = await completeChallenge(question);
+                if (!ok) return;
+
+                setOpenCorrect(true);
+                setOpenDialog(false);
+                setRevealed((prev) =>
+                  prev.map(
+                    (revealedCell, i) => revealedCell || i + 1 === question.id
+                  )
+                );
+              }}
+              onGiveUp={() => {
+                toast.info(gameMessages[lang].giveUp);
+                setOpenDialog(false);
               }}
             />
           ) : null}

@@ -23,7 +23,9 @@ export default function InputQuestionForm({
   onGiveUp,
 }: InputQuestionFormProps) {
   if (question.qn.type !== "INPUT") return null;
+  const qn = question.qn;
 
+  const correctAnswer = lang === "en" ? qn.answer_en : qn.answer_zh;
   const [answerInput, setAnswerInput] = useState("");
 
   useEffect(() => {
@@ -35,9 +37,6 @@ export default function InputQuestionForm({
     e.preventDefault();
 
     const userAnswer = String(answerInput).trim();
-    const correctAnswer = String(
-      lang === "en" ? question.qn.answer_en : question.qn.answer_zh
-    ).trim();
 
     let isCorrect = userAnswer.toUpperCase() === correctAnswer.toUpperCase();
 
@@ -73,13 +72,13 @@ export default function InputQuestionForm({
 
       {/* ACTION ROW */}
       <div className="flex flex-row items-center justify-center gap-3">
-        <Button type="submit">{gameMessages[lang].submitLabel}</Button>
-
         <DialogClose asChild>
           <Button type="button" variant="destructive" onClick={onGiveUp}>
             {gameMessages[lang].giveUpLabel}
           </Button>
         </DialogClose>
+
+        <Button type="submit">{gameMessages[lang].submitLabel}</Button>
       </div>
     </form>
   );

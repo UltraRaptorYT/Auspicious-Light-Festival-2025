@@ -31,6 +31,20 @@ type MatchQuestion = {
   used: Record<Lang, string>;
 };
 
+export type SelectOption = {
+  en: string;
+  zh: string;
+};
+
+export type SelectQuestion = {
+  type: "SELECT";
+  question_en: string;
+  question_zh: string;
+  options: Record<string, SelectOption>;
+  answer: string | string[];
+  multi?: boolean;
+};
+
 // type FileQuestion = {
 //   type: "FILE";
 //   question: string;
@@ -47,4 +61,4 @@ type MatchQuestion = {
 //   question: string;
 // };
 
-type Qn = InputQuestion | MatchQuestion;
+type Qn = InputQuestion | MatchQuestion | SelectQuestion;
