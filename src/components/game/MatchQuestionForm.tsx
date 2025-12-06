@@ -256,17 +256,18 @@ export default function MatchQuestionForm({
 
       {/* ACTION ROW */}
       <div className="flex items-center justify-center gap-3 pt-2">
-        <DialogClose asChild>
-          <Button type="button" variant="destructive" onClick={onGiveUp}>
-            {gameMessages[lang].giveUpLabel}
-          </Button>
-        </DialogClose>
         <Button type="button" onClick={handleSubmit}>
           {gameMessages[lang].submitLabel}
         </Button>
         <Button type="button" variant="outline" onClick={handleReset}>
           {isEn ? "Reset" : "重置"}
         </Button>
+
+        <DialogClose asChild>
+          <Button type="button" variant="destructive" onClick={onGiveUp}>
+            {gameMessages[lang].giveUpLabel}
+          </Button>
+        </DialogClose>
       </div>
     </div>
   );

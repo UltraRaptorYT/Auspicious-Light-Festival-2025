@@ -100,12 +100,6 @@ export default function SelectQuestionForm({
       </div>
 
       <div className="flex flex-row items-center justify-center gap-3">
-        {onGiveUp ? (
-          <Button type="button" variant="destructive" onClick={onGiveUp}>
-            {lang === "en" ? "I give up" : "我放弃"}
-          </Button>
-        ) : null}
-
         <Button
           type="button"
           onClick={handleSubmit}
@@ -113,6 +107,12 @@ export default function SelectQuestionForm({
         >
           {lang === "en" ? "Submit" : "提交"}
         </Button>
+
+        {onGiveUp ? (
+          <Button type="button" variant="destructive" onClick={onGiveUp}>
+            {lang === "en" ? "I give up" : "我放弃"}
+          </Button>
+        ) : null}
       </div>
 
       {isMulti ? (

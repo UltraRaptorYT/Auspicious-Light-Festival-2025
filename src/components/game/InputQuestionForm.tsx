@@ -72,13 +72,13 @@ export default function InputQuestionForm({
 
       {/* ACTION ROW */}
       <div className="flex flex-row items-center justify-center gap-3">
+        <Button type="submit">{gameMessages[lang].submitLabel}</Button>
+
         <DialogClose asChild>
           <Button type="button" variant="destructive" onClick={onGiveUp}>
             {gameMessages[lang].giveUpLabel}
           </Button>
         </DialogClose>
-
-        <Button type="submit">{gameMessages[lang].submitLabel}</Button>
       </div>
     </form>
   );
