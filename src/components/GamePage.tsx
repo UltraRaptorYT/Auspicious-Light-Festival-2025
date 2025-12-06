@@ -223,7 +223,7 @@ export default function GamePage({
         <h1 className="text-2xl font-semibold tracking-tight text-center pt-8">
           {message.eventName}
         </h1>
-        <p>
+        <p className="max-w-64 text-center">
           {revealed.filter((e) => !e).length == 0 &&
             gameMessages[lang].scratchCardComplete}
         </p>
