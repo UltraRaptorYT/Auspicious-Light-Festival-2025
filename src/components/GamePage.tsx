@@ -219,9 +219,15 @@ export default function GamePage({
 
   return (
     <div className={`w-full max-w-md p-6 space-y-6 ${fontClass}`}>
-      <h1 className="text-2xl font-semibold tracking-tight text-center pt-8">
-        {message.eventName}
-      </h1>
+      <div className="flex-col flex gap-2 items-center justify-center">
+        <h1 className="text-2xl font-semibold tracking-tight text-center pt-8">
+          {message.eventName}
+        </h1>
+        <p>
+          {revealed.filter((e) => !e).length == 0 &&
+            gameMessages[lang].scratchCardComplete}
+        </p>
+      </div>
       <div className="mx-auto aspect-square max-w-3xl border w-full">
         <ScannerComp
           formats={[
@@ -282,10 +288,10 @@ export default function GamePage({
           </DialogHeader>
         </DialogContent>
       </Dialog>
-
-      <Button onClick={() => processCode(`auspicious_light_${16}`)}>
+      {/*
+      <Button onClick={() => processCode(`auspicious_light_${18}`)}>
         Trigger Scan
-      </Button>
+      </Button> */}
 
       {/* Result dialog */}
       <Dialog open={openCorrect} onOpenChange={setOpenCorrect}>
